@@ -15,3 +15,8 @@ of a skewed distribution. Considered 90th (flag only extreme cases) and 60th (ca
 problems earlier) as alternatives. Would use an official city SLA/target instead if 
 available, since that'd be more directly tied to real-world "delayed" than a statistical 
 percentile.
+
+## Binary vs multi-class framing
+Started with binary classification (delayed vs not) rather than multi-class categories, 
+to establish a working baseline before adding complexity. Class balance came out to 
+~75/25, reasonable enough to not require special imbalance handling initially.
