@@ -20,3 +20,9 @@ percentile.
 Started with binary classification (delayed vs not) rather than multi-class categories, 
 to establish a working baseline before adding complexity. Class balance came out to 
 ~75/25, reasonable enough to not require special imbalance handling initially.
+
+## Train/test split strategy
+Using 2024 as training data and 2025 as the test set (temporal split) instead of a 
+random split across both years, to simulate real deployment (predicting future permits 
+from past patterns) and avoid data leakage. Confirmed the delayed/not-delayed class 
+balance is similar across both years (~75/25 vs ~77/23), supporting this approach.
