@@ -31,3 +31,8 @@ balance is similar across both years (~75/25 vs ~77/23), supporting this approac
 94 unique values, heavily long-tailed. Grouped to top 15 + "Other" (frequency-based, 
 covers ~90% of data) rather than encoding all 94 categories or manually merging by 
 semantic similarity.
+
+## Submission timing feature
+Compared delay rate by month (8pp spread, Aug 21.5% to Dec 29.4%) vs by quarter 
+(1.4pp spread, too flat to be useful). Kept month as a one-hot encoded feature, 
+dropped quarter since averaging masked the December/February pattern.
