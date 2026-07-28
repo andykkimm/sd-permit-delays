@@ -36,3 +36,8 @@ semantic similarity.
 Compared delay rate by month (8pp spread, Aug 21.5% to Dec 29.4%) vs by quarter 
 (1.4pp spread, too flat to be useful). Kept month as a one-hot encoded feature, 
 dropped quarter since averaging masked the December/February pattern.
+
+## Location feature
+Kept GIS_LATITUDE/GIS_LONGITUDE as raw numeric values rather than manually clustering 
+into neighborhoods, since gradient boosting can split directly on coordinate values to 
+find spatial patterns on its own. Dropped 2,114 rows (~3.8%) missing coordinates.
