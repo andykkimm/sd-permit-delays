@@ -26,3 +26,8 @@ Using 2024 as training data and 2025 as the test set (temporal split) instead of
 random split across both years, to simulate real deployment (predicting future permits 
 from past patterns) and avoid data leakage. Confirmed the delayed/not-delayed class 
 balance is similar across both years (~75/25 vs ~77/23), supporting this approach.
+
+## APPROVAL_TYPE encoding
+94 unique values, heavily long-tailed. Grouped to top 15 + "Other" (frequency-based, 
+covers ~90% of data) rather than encoding all 94 categories or manually merging by 
+semantic similarity.
