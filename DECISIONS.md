@@ -47,3 +47,10 @@ GradientBoostingClassifier, default params, trained on 2024, tested on 2025.
 Accuracy: 85.1%, Precision: 65.7%, Recall: 74.9%, ROC-AUC: 0.916.
 Beats the naive baseline (77.7% accuracy from always predicting "not delayed"),
 confirming the engineered features carry real signal.
+
+## SHAP findings
+Permit type dominates all other features by a wide margin. Full construction/plan-review 
+types (Combination Building, Building, Electrical/Plumbing/Mechanical Pmt) push toward 
+delay; routine no-plan types (Traffic Control, No-Plan Residential Combo) push toward 
+on-time. This matches the No-Plan vs. full-review pattern first noticed in early EDA. 
+Location shows a modest continuous effect; month has minimal individual impact.
