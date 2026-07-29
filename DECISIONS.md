@@ -41,3 +41,9 @@ dropped quarter since averaging masked the December/February pattern.
 Kept GIS_LATITUDE/GIS_LONGITUDE as raw numeric values rather than manually clustering 
 into neighborhoods, since gradient boosting can split directly on coordinate values to 
 find spatial patterns on its own. Dropped 2,114 rows (~3.8%) missing coordinates.
+
+## Baseline model results
+GradientBoostingClassifier, default params, trained on 2024, tested on 2025.
+Accuracy: 85.1%, Precision: 65.7%, Recall: 74.9%, ROC-AUC: 0.916.
+Beats the naive baseline (77.7% accuracy from always predicting "not delayed"),
+confirming the engineered features carry real signal.
