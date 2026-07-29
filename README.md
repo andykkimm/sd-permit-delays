@@ -2,7 +2,7 @@
 
 Predicting and explaining San Diego building permit approval delays using gradient boosting and SHAP, built on the City of San Diego's open permit dataset.
 
-**[Live App](#) · [Analysis Notebook](eda.ipynb) · [Decision Log](DECISIONS.md)**
+**[Live App](https://sd-permit-delays.streamlit.app) · [Analysis Notebook](eda.ipynb) · [Decision Log](DECISIONS.md)**
 
 ## Overview
 
