@@ -17,13 +17,13 @@ st.write(
     "submission month, and location."
 )
 
-# --- Sidebar inputs ---
-st.sidebar.header("Permit Details")
+# --- Inputs (now in the main body, not the sidebar) ---
+st.header("Permit Details")
 
-approval_type = st.sidebar.selectbox("Approval Type", list(top_15_types) + ["Other"])
-submit_month = st.sidebar.selectbox("Submission Month", list(range(1, 13)))
-latitude = st.sidebar.number_input("Latitude", value=32.7157, format="%.4f")
-longitude = st.sidebar.number_input("Longitude", value=-117.1611, format="%.4f")
+approval_type = st.selectbox("Approval Type", list(top_15_types) + ["Other"])
+submit_month = st.selectbox("Submission Month", list(range(1, 13)))
+latitude = st.number_input("Latitude", value=32.7157, format="%.4f")
+longitude = st.number_input("Longitude", value=-117.1611, format="%.4f")
 
 # --- Build a single-row feature vector matching training format ---
 input_row = {col: 0 for col in features_to_keep}
@@ -41,7 +41,7 @@ if month_col in input_row:
 X_input = pd.DataFrame([input_row])[features_to_keep]
 
 # --- Predict ---
-if st.sidebar.button("Predict"):
+if st.button("Predict"):
     prediction = model.predict(X_input)[0]
     probability = model.predict_proba(X_input)[0][1]
 
