@@ -58,6 +58,89 @@ Location shows a modest continuous effect; month has minimal individual impact.
 
 
 
+# v2: Feature Mining, Calibration, Custom Deadlines (August 2026)
+
+## Shared feature module (features.py)
+Moved feature construction into features.py, imported by both train.py and
+app.py. Previously the app hand-built its feature vector, which is exactly
+where a silent train/serve mismatch bug would live. One code path now serves
+both.
+
+## Reproducible pipeline (train.py) alongside the notebook
+eda.ipynb remains the original exploration record; train.py is the
+reproducible pipeline that regenerates every model artifact and figure.
+Verified it reproduces the documented v1 metrics exactly (85.1% / 65.7% /
+74.9% / 0.916) before changing anything.
+
+## New features (v2)
+Audited all 54 raw columns for signal and submission-time availability. Added:
+- has_project (linked to a larger development project): 1% vs 62% delay rate
+- processing track (Standard/Express/Expedite/Not Required): 0.1%-95% range
+- declared valuation (log-scaled + has_valuation flag): higher valuation,
+  much higher delay rate
+- scope description length (log chars)
+- permit-holder annual volume (log permits/yr from training year): high-volume
+  contractors 5.6% delayed vs 38% for one-timers
+Documented assumption: processing code and scope text are set at intake and
+not edited mid-review (the data snapshot can't verify this). Skipped
+JOB_BC_CODE (25% coverage, overlaps approval type) and project age
+(non-monotonic, weak). Post-decision columns (close/expire dates, status)
+excluded as leakage.
+
+Result on 2025: accuracy 85.1% -> 87.3%, precision 65.7% -> 69.3%, recall
+74.9% -> 80.6%, ROC-AUC 0.916 -> 0.942.
+
+## Top-15 types and cutoff computed before the lat/long drop
+Two pipeline-reproduction bugs caught and fixed: the original notebook
+computed the top-15 approval types and the 66-day cutoff BEFORE dropping
+rows missing coordinates. Computing them after the drop changes both
+(cutoff drifts to 73, Transportation Permit falls out of the top 15).
+train.py now matches the original order of operations.
+
+## Calibration: checked, deliberately NOT applied
+The app exposes probabilities and a sensitivity threshold, so predicted 30%
+should mean ~30% observed. Tested isotonic and sigmoid calibration wrappers,
+selecting on a held-out Nov-Dec 2024 slice (never the 2025 test set, and
+temporal to mimic deployment). Both calibrators were much WORSE than the raw
+model (holdout Brier 0.30 vs 0.18) — they overfit 2024 probability quirks
+that don't transfer across years. The uncalibrated model is already
+well-calibrated on 2025 (ECE ~2.3%), so it ships as-is. Lesson: calibration
+wrappers fitted on one year can hurt under temporal shift; check before
+applying.
+
+## Custom deadlines: threshold grid, after quantile regression failed
+A tester wanted their own day threshold, which the single binary model can't
+answer. First attempt: quantile regression (GradientBoostingRegressor,
+quantile loss) at the 10th/25th/50th/75th/90th percentiles. It failed in a
+specific way: days_to_approval is zero-inflated (~38% of permits approved
+almost instantly), so the lower-quantile models collapsed to predicting ~0
+for everything (2025 coverage 0.38 at both q10 and q25 — see
+figures/quantile_coverage.png). A permit with 93% delay probability still got
+q25=0, poisoning any interpolated estimate.
+
+Shipped approach instead: a grid of binary classifiers at 15/30/45/66/90/120/
+180 days — the same model class already validated at AUC 0.94 — with
+monotonicity enforced across the grid and linear interpolation between
+thresholds for arbitrary deadlines. Each grid model is individually
+AUC/Brier-checked on 2025. Quantile models kept in the pipeline as a
+documented negative result.
+
+## Error analysis (reports/error_analysis.md)
+The model is near-perfect on routine no-plan types and catches 91-96% of
+delays on classic plan-review types (Building, Electrical, Plumbing,
+Mechanical, Combination). Two real blind spots: Right-of-Way permits (38%
+delay rate, 11.5% recall) and Fire Alarm permits (22% delay rate, 11%
+recall) — delay in those types isn't explained by the current features.
+19.4% of delayed permits are missed overall; median actual delay among
+misses is 148 days, so misses skew toward shorter delays. Errors are flat
+across months and show no geographic clustering (figures/fn_map.png).
+
+## Map input tiles
+Clickable folium/Leaflet map replaces raw lat/long number boxes. CartoDB
+Voyager tiles: Mapbox-style look without an API token. Swapping in true
+Mapbox tiles later is a one-line change reading a token from st.secrets.
+
+
 # Changes Made After Peer Feedback
 
 ## Month slider
