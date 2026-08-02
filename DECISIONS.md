@@ -54,3 +54,20 @@ types (Combination Building, Building, Electrical/Plumbing/Mechanical Pmt) push 
 delay; routine no-plan types (Traffic Control, No-Plan Residential Combo) push toward 
 on-time. This matches the No-Plan vs. full-review pattern first noticed in early EDA. 
 Location shows a modest continuous effect; month has minimal individual impact.
+
+
+
+
+# Changes Made After Peer Feedback
+
+## Month slider
+st.slider(1, 12, format_func=...) shows "March" instead of "3" while dragging, because this is more intuitive
+
+## Sensitivity Slider
+this replaces the hardcoded 50% cutoff with sensitivity = st.slider(...), then prediction = int(probability >= sensitivity).
+
+## Legend as icons
+two columns with 🔴/🔵 dots instead of the descriptive paragraph, quick visual scan instead of reading.
+
+## Bar chart replacing the waterfall
+np.argsort picks the top 10 features by absolute SHAP impact, ax.barh draws them as a horizontal bar chart, colored red (pushes toward delayed) or blue (pushes toward on-time), with ax.invert_yaxis() so the strongest feature sits at the top, matching natural reading order. No base value, no cumulative flow, no directional confusion, each bar just shows "this feature's size and direction of pull," which is a much cleaner mental model than the waterfall's accounting-style chain.

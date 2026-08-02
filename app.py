@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
 import shap
 import matplotlib.pyplot as plt
@@ -10,6 +11,11 @@ features_to_keep = joblib.load('features_to_keep.pkl')
 top_15_types = joblib.load('top_15_types.pkl')
 cutoff = joblib.load('cutoff.pkl')
 
+MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+]
+
 st.title("San Diego Permit Delay Predictor")
 st.write(
     "Predicts whether a building permit approval is likely to be delayed "
@@ -17,14 +23,39 @@ st.write(
     "submission month, and location."
 )
 
-# --- Inputs (now in the main body, not the sidebar) ---
+# --- Inputs ---
 st.header("Permit Details")
 st.write("Enter a hypothetical permit's details below to see a live prediction.")
 
 approval_type = st.selectbox("Approval Type", list(top_15_types) + ["Other"])
-submit_month = st.selectbox("Submission Month", list(range(1, 13)))
+
+# Month as a slider instead of a dropdown, showing the month name instead of the raw number
+submit_month = st.slider(
+    "Submission Month", min_value=1, max_value=12, value=1,
+    format_func=lambda m: MONTH_NAMES[m - 1]
+)
+
 latitude = st.number_input("Latitude", value=32.7157, format="%.4f")
 longitude = st.number_input("Longitude", value=-117.1611, format="%.4f")
+
+# Sensitivity slider: lets the user adjust how confident the model needs to be
+# before calling something "delayed," instead of a fixed 50% cutoff.
+# Note: this does NOT change what "delayed" means (still >66 days) -- it only
+# changes how cautious the app is about flagging risk.
+sensitivity = st.slider(
+    "Prediction sensitivity (lower = flag more permits as at-risk)",
+    min_value=0.1, max_value=0.9, value=0.5, step=0.05
+)
+st.caption(
+    "This doesn't change what counts as a delay, it changes how cautious the "
+    "app is about warning you. Someone extra cautious could say 'show me "
+    "delayed for anything over 30% risk' — basically, 'I'd rather get some "
+    "false alarms than miss a real delay.' Someone else could say 'only tell "
+    "me delayed if you're over 70% sure' — meaning 'I don't want to be "
+    "bothered unless it's a strong signal.' Same model, same 66-day "
+    "definition underneath, just a different comfort level for how the "
+    "results get labeled to you."
+)
 
 # --- Build a single-row feature vector matching training format ---
 input_row = {col: 0 for col in features_to_keep}
@@ -41,13 +72,8 @@ if month_col in input_row:
 
 X_input = pd.DataFrame([input_row])[features_to_keep]
 
-MONTH_NAMES = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-]
-
 def friendly_name(col):
-    """Convert raw column names into readable labels for the SHAP chart."""
+    """Convert raw column names into readable labels for the chart."""
     if col.startswith("type_"):
         return "Permit Type: " + col.replace("type_", "")
     if col.startswith("month_"):
@@ -66,8 +92,8 @@ OVERALL_DELAY_RATE = 0.249  # 75th percentile cutoff by construction, ~25% of pe
 
 # --- Predict ---
 if st.button("Predict"):
-    prediction = model.predict(X_input)[0]
     probability = model.predict_proba(X_input)[0][1]
+    prediction = int(probability >= sensitivity)
 
     st.subheader("Prediction")
     if prediction == 1:
@@ -91,24 +117,33 @@ if st.button("Predict"):
     # --- SHAP explanation for this specific prediction ---
     st.subheader("Why this prediction?")
     st.write(
-        "The chart below shows what pushed this specific prediction toward "
-        "**delayed** (red bars, pointing right) or **on time** (blue bars, "
-        "pointing left). Bars are ordered by how much impact they had, "
-        "with the biggest driver at the top. The starting point on the left "
-        "is the average outcome across all permits; the ending point on the "
-        "right is this permit's final predicted score."
+        "The chart below shows the features that most influenced this specific "
+        "prediction, ranked from strongest to weakest."
     )
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_input)
 
-    fig, ax = plt.subplots()
-    shap.plots.waterfall(
-        shap.Explanation(
-            values=shap_values[0],
-            base_values=explainer.expected_value,
-            data=X_input.iloc[0],
-            feature_names=friendly_feature_names
-        ),
-        show=False
-    )
+    # Compact legend, icons instead of a paragraph
+    legend_col1, legend_col2 = st.columns(2)
+    with legend_col1:
+        st.markdown("🔴 **Pushed toward DELAYED**")
+    with legend_col2:
+        st.markdown("🔵 **Pushed toward ON TIME**")
+
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_input)[0]
+
+    # Take the top 10 features by absolute impact, sorted for the chart
+    top_n = 10
+    order = np.argsort(np.abs(shap_values))[::-1][:top_n]
+    top_values = shap_values[order]
+    top_labels = [friendly_feature_names[i] for i in order]
+    colors = ['#d62728' if v > 0 else '#1f77b4' for v in top_values]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    y_pos = np.arange(len(top_labels))
+    ax.barh(y_pos, top_values, color=colors)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(top_labels)
+    ax.invert_yaxis()  # strongest feature at the top
+    ax.set_xlabel("Impact on prediction (SHAP value)")
+    ax.axvline(0, color='black', linewidth=0.8)
     st.pyplot(fig)
