@@ -1,7 +1,9 @@
 streamlit==1.51.0
 pandas==2.3.3
 scikit-learn==1.7.2
-shap
-matplotlib
+shap==0.50.0
+matplotlib==3.10.7
 joblib==1.5.2
 numpy==2.3.4
+folium==0.20.0
+streamlit-folium==0.27.3
