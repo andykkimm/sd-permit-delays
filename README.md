@@ -2,7 +2,7 @@
 
 Predicting and explaining San Diego building permit approval delays — including the chance a permit blows past *your* deadline — using gradient boosting and SHAP, built on the City of San Diego's open permit dataset.
 
-**[Live App](https://sd-permit-delays.streamlit.app) · [Analysis Notebook](eda.ipynb) · [Training Pipeline](train.py) · [Decision Log](DECISIONS.md) · [Error Analysis](reports/error_analysis.md)**
+**[Live App](https://sd-permit-delays.streamlit.app) · [v2 Analysis Notebook](analysis_v2.ipynb) · [Training Pipeline](train.py) · [Decision Log](DECISIONS.md) · [Error Analysis](reports/error_analysis.md)**
 
 ## Overview
 
@@ -82,7 +82,8 @@ Python, Pandas, scikit-learn, SHAP, Streamlit, streamlit-folium, Matplotlib
 
 ```
 sd-permit-delays/
-├── eda.ipynb               # Original exploration: cleaning, features, modeling, SHAP
+├── analysis_v2.ipynb       # Narrated v2 analysis: features, calibration, deadlines, errors
+├── eda.ipynb               # Original v1 exploration: cleaning, features, modeling, SHAP
 ├── train.py                # Reproducible pipeline: data -> models + figures
 ├── features.py             # Shared feature engineering (training AND serving)
 ├── error_analysis.py       # Generates reports/error_analysis.md + maps
