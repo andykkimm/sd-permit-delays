@@ -4,6 +4,8 @@ Predicting and explaining San Diego building permit approval delays — includin
 
 **[Live App](https://sd-permit-delays.streamlit.app) · [v2 Analysis Notebook](analysis_v2.ipynb) · [Training Pipeline](train.py) · [Decision Log](DECISIONS.md) · [Error Analysis](reports/error_analysis.md)**
 
+[![App screenshot: permit inputs with clickable map on the left, deadline risk, delay prediction, and SHAP explanation on the right](figures/app_screenshot.png)](https://sd-permit-delays.streamlit.app)
+
 ## Overview
 
 The City of San Diego's Development Services Department processes tens of thousands of permit approvals a year, everything from homeowner renovations to large residential developments. Some permits move in days, others sit for months. This project predicts whether a given permit is likely to be delayed, estimates the risk against any user-chosen deadline, and explains *why* using SHAP per-prediction breakdowns.
