@@ -1,14 +1,14 @@
 # San Diego Permit Delay Predictor
 
-Predicting and explaining San Diego building permit approval delays — including the chance a permit blows past *your* deadline — using gradient boosting and SHAP, built on the City of San Diego's open permit dataset.
+Predicting and explaining San Diego building permit approval delays using gradient boosting and SHAP, built on the City of San Diego's open permit dataset.
 
 **[Live App](https://sd-permit-delays.streamlit.app) · [v2 Analysis Notebook](analysis_v2.ipynb) · [Training Pipeline](train.py) · [Decision Log](DECISIONS.md) · [Error Analysis](reports/error_analysis.md)**
 
-[![App screenshot: permit inputs with clickable map on the left, deadline risk, delay prediction, and SHAP explanation on the right](figures/app_screenshot.png)](https://sd-permit-delays.streamlit.app)
+[![App screenshot: permit inputs with clickable map on the left, delay prediction and SHAP explanation on the right](figures/app_screenshot.png)](https://sd-permit-delays.streamlit.app)
 
 ## Overview
 
-The City of San Diego's Development Services Department processes tens of thousands of permit approvals a year, everything from homeowner renovations to large residential developments. Some permits move in days, others sit for months. This project predicts whether a given permit is likely to be delayed, estimates the risk against any user-chosen deadline, and explains *why* using SHAP per-prediction breakdowns.
+The City of San Diego's Development Services Department processes tens of thousands of permit approvals a year, everything from homeowner renovations to large residential developments. Some permits move in days, others sit for months. This project predicts whether a given permit is likely to be delayed and explains *why* using SHAP per-prediction breakdowns.
 
 ![Delay rate across San Diego](figures/delay_map.png)
 
@@ -26,11 +26,11 @@ The City of San Diego's Development Services Department processes tens of thousa
 - Binary target: approval taking longer than the 75th percentile of 2024 (66 days)
 - All features screened for submission-time availability; post-decision columns (close/expire dates, status) excluded as leakage (see [DECISIONS.md](DECISIONS.md))
 
-## Models
+## Model
 
 Everything is reproducible via `python train.py`, which regenerates all artifacts and figures from the raw CSVs.
 
-**1. Binary delay classifier** (`GradientBoostingClassifier`, 39 features):
+`GradientBoostingClassifier` with 39 features, trained on 2024 and evaluated on 2025:
 
 | Metric | v1 (type+month+location) | v2 (+ project context) |
 |---|---|---|
@@ -40,12 +40,6 @@ Everything is reproducible via `python train.py`, which regenerates all artifact
 | ROC-AUC | 0.916 | **0.942** |
 
 (Naive always-on-time baseline: 76.9% accuracy on 2025.)
-
-**2. Deadline risk curve** — a grid of classifiers at 15/30/45/66/90/120/180 days, interpolated so the app can answer "what's the chance this exceeds *my* deadline?" for any threshold. This replaced a quantile-regression attempt that failed on the zero-inflated duration distribution — the full post-mortem is in [DECISIONS.md](DECISIONS.md).
-
-**3. Calibration, checked and deliberately not applied**: isotonic/sigmoid wrappers made things *worse* under temporal shift (selected on a held-out late-2024 slice, never the test set). The raw model is already well-calibrated on 2025 (ECE ≈ 2.3%), so predicted probabilities can be taken at face value.
-
-![Calibration curve](figures/calibration.png)
 
 ## Where the model is wrong
 
@@ -65,8 +59,7 @@ SHAP `TreeExplainer` provides global importances and per-prediction breakdowns i
 
 The [Streamlit dashboard](https://sd-permit-delays.streamlit.app) lets users describe a hypothetical permit (type, month, clickable map location, optional project details) and see:
 
-- The chance approval exceeds **their own deadline** (any number of days)
-- A typical-wait estimate and the standard 66-day delayed/on-time call with probability
+- A delayed/on-time prediction with estimated probability, plus an adjustable sensitivity threshold for how cautiously risk gets flagged
 - A SHAP chart explaining which factors drove that specific prediction
 
 To run locally:
@@ -84,7 +77,7 @@ Python, Pandas, scikit-learn, SHAP, Streamlit, streamlit-folium, Matplotlib
 
 ```
 sd-permit-delays/
-├── analysis_v2.ipynb       # Narrated v2 analysis: features, calibration, deadlines, errors
+├── analysis_v2.ipynb       # Narrated v2 analysis: features, model comparison, errors
 ├── eda.ipynb               # Original v1 exploration: cleaning, features, modeling, SHAP
 ├── train.py                # Reproducible pipeline: data -> models + figures
 ├── features.py             # Shared feature engineering (training AND serving)
@@ -92,7 +85,7 @@ sd-permit-delays/
 ├── app.py                  # Streamlit dashboard
 ├── DECISIONS.md            # Log of key project decisions and reasoning
 ├── reports/                # Error analysis writeup
-├── figures/                # Calibration, SHAP, coverage, maps, metrics.json
+├── figures/                # SHAP summary, maps, app screenshot, metrics.json
 ├── *.pkl                   # Model artifacts (see train.py)
 └── data/                   # Raw CSVs (not tracked in git, see .gitignore)
 ```

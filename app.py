@@ -19,13 +19,11 @@ from features import (
 st.set_page_config(page_title="SD Permit Delay Predictor", layout="wide")
 
 
-# --- Load saved models and reference data (cached across reruns) ---
+# --- Load saved model and reference data (cached across reruns) ---
 @st.cache_resource
 def load_artifacts():
     return {
-        "raw": joblib.load("model_v2_raw.pkl"),        # uncalibrated, for SHAP
-        "cal": joblib.load("model_v2_cal.pkl"),        # deployed probabilities
-        "thresholds": joblib.load("threshold_models.pkl"),
+        "model": joblib.load("model_v2.pkl"),
         "features": joblib.load("features_v2.pkl"),
         "top_types": list(joblib.load("top_15_types.pkl")),
         "cutoff": float(joblib.load("cutoff.pkl")),
@@ -42,9 +40,9 @@ SD_CENTER = (32.7157, -117.1611)
 
 st.title("San Diego Permit Delay Predictor")
 st.write(
-    "Estimates how long a building permit approval is likely to take — and the "
-    "chance it blows past **your** deadline — based on permit type, timing, "
-    "location, and project details."
+    "Predicts whether a building permit approval is likely to be delayed "
+    f"(defined as taking more than {int(A['cutoff'])} days), "
+    "based on permit type, timing, location, and project details."
 )
 
 input_col, output_col = st.columns(2, gap="large")
@@ -95,12 +93,6 @@ with input_col:
             "Who's pulling the permit?", list(HOLDER_VOLUME_CHOICES)
         )
 
-    deadline = st.number_input(
-        "**Your deadline (days)** — what counts as 'too long' for you?",
-        min_value=1, max_value=365, value=int(A["cutoff"]),
-        help="The model estimates the chance your approval takes longer than this.",
-    )
-
     sensitivity = st.slider(
         "Prediction sensitivity (lower = flag more permits as at-risk)",
         min_value=0.1, max_value=0.9, value=0.5, step=0.05,
@@ -112,41 +104,6 @@ with input_col:
     )
 
     predict_clicked = st.button("Predict", type="primary")
-
-# --- Prediction helpers ---
-THRESHOLD_GRID = sorted(A["thresholds"].keys())
-
-
-def survival_curve(X):
-    """P(days > t) at each grid threshold, forced monotone non-increasing."""
-    probs = np.array(
-        [A["thresholds"][t].predict_proba(X)[0][1] for t in THRESHOLD_GRID]
-    )
-    return np.minimum.accumulate(probs)
-
-
-def prob_exceeds(curve, t):
-    """P(days > t) for an arbitrary deadline, interpolating the grid.
-
-    Returns (prob, extrapolated); extrapolated is True when t lies outside
-    the trained 15-180 day grid, where the estimate is an endpoint value.
-    """
-    p = float(np.interp(t, THRESHOLD_GRID, curve))
-    return p, t < THRESHOLD_GRID[0] or t > THRESHOLD_GRID[-1]
-
-
-def curve_median(curve):
-    """Deadline at which risk crosses 50% — a 'typical wait' estimate.
-
-    Returns (days, note) where note flags out-of-grid answers.
-    """
-    if curve[0] < 0.5:  # even 15 days is more likely than not enough
-        return THRESHOLD_GRID[0], "under"
-    if curve[-1] > 0.5:  # majority of similar permits blow past 180 days
-        return THRESHOLD_GRID[-1], "over"
-    # interpolate on the decreasing curve
-    return float(np.interp(0.5, curve[::-1], THRESHOLD_GRID[::-1])), "within"
-
 
 # --- Outputs (right column) ---
 # Computed on Predict, stashed in session_state so results survive the
@@ -166,7 +123,6 @@ with output_col:
 
         st.session_state["result"] = {
             "X_input": X_input,
-            "deadline": deadline,
             "sensitivity": sensitivity,
         }
 
@@ -174,58 +130,24 @@ with output_col:
         st.info("Fill in the permit details on the left and click **Predict**.")
     else:
         R = st.session_state["result"]
-        X_input, deadline, sensitivity = R["X_input"], R["deadline"], R["sensitivity"]
+        X_input, sensitivity = R["X_input"], R["sensitivity"]
 
-        # -- your-deadline estimate from the threshold-grid models --
-        curve = survival_curve(X_input)
-        p_deadline, extrapolated = prob_exceeds(curve, deadline)
-        med, med_note = curve_median(curve)
-
-        st.subheader(f"Chance of exceeding your {deadline}-day deadline")
-        st.metric("Estimated risk", f"{p_deadline:.0%}")
-        if extrapolated:
-            st.caption(
-                f"Deadlines outside {THRESHOLD_GRID[0]}-{THRESHOLD_GRID[-1]} "
-                "days fall beyond the modeled range; this is the nearest "
-                "in-range estimate."
-            )
-        if med_note == "under":
-            st.write(
-                f"Permits like this are usually quick — better than even odds "
-                f"of approval within {THRESHOLD_GRID[0]} days."
-            )
-        elif med_note == "over":
-            st.write(
-                f"Permits like this usually take a while — better than even "
-                f"odds of exceeding {THRESHOLD_GRID[-1]} days."
-            )
-        else:
-            st.write(
-                f"Typical approval for a permit like this: about **{med:.0f} "
-                f"days** (the 50/50 point)."
-            )
-
-        # -- the standard 66-day framing, calibrated --
-        probability = A["cal"].predict_proba(X_input)[0][1]
+        probability = A["model"].predict_proba(X_input)[0][1]
         prediction = int(probability >= sensitivity)
-        st.subheader(f"Standard {int(A['cutoff'])}-day definition")
         if prediction == 1:
             st.error(f"Likely DELAYED — {probability:.1%} estimated probability")
         else:
             st.success(f"Likely ON TIME — {probability:.1%} estimated delay probability")
         st.caption(
-            f"'Delayed' here means taking longer than {int(A['cutoff'])} days, the "
-            "75th percentile of 2024 approvals — about 25% of permits. These "
-            "probabilities are calibration-checked on held-out 2025 data: "
-            "among permits given ~30%, roughly 30% actually ran late "
-            "(expected calibration error ≈ 2%)."
+            f"'Delayed' means taking longer than {int(A['cutoff'])} days, the "
+            "75th percentile of 2024 approvals — about 25% of permits."
         )
 
         # -- SHAP explanation --
         st.subheader("Why this prediction?")
         st.markdown("🔴 **Pushed toward DELAYED** &nbsp;&nbsp; 🔵 **Pushed toward ON TIME**")
 
-        explainer = shap.TreeExplainer(A["raw"])
+        explainer = shap.TreeExplainer(A["model"])
         shap_values = explainer.shap_values(X_input)[0]
 
         top_n = 10
@@ -245,27 +167,15 @@ with output_col:
         fig.tight_layout()
         st.pyplot(fig)
 
-# --- How the models work ---
-with st.expander("How this works: two models, one goal"):
+# --- About the model ---
+with st.expander("About the model"):
     st.markdown(
         """
-**This app started with one model and grew a second because of user feedback.**
-
-The original model answers a fixed question — *"will this take longer than 66
-days?"* — as a binary classifier. A tester asked to set their **own** threshold
-("what about 30 days? 90?"), which a binary model fundamentally can't do: it's
-trained on one specific label.
-
-The fix was reframing: a **grid of classifiers** trained at 15, 30, 45, 66,
-90, 120, and 180 days now traces out the full risk curve. Interpolating
-between them answers "what's the chance this exceeds *t* days?" for any
-deadline — the feature that couldn't exist before.
-
-(We first tried quantile regression for this, but approval times are
-zero-inflated — roughly 38% of permits are approved almost instantly — and
-the lower-quantile models collapsed to predicting zero for everything. The
-threshold grid sidesteps that failure mode; the full story is in the
-project's decision log.)
+A gradient boosting classifier trained on 2024 San Diego permit approvals
+and evaluated on a fully held-out 2025 test year. The second version added
+project-context features (linked development project, processing track,
+declared valuation, scope description, contractor volume) mined from
+columns the first version ignored:
         """
     )
     try:
@@ -273,7 +183,7 @@ project's decision log.)
             metrics = json.load(f)
         rows = []
         for key, label in [("v1", "v1 — type, month, location"),
-                           ("v2", "v2 — + project/valuation/scope/contractor (deployed)")]:
+                           ("v2", "v2 — + project context (deployed)")]:
             if key in metrics:
                 m = metrics[key]
                 rows.append({
@@ -284,10 +194,6 @@ project's decision log.)
                     "ROC-AUC": f"{m['roc_auc']:.3f}",
                 })
         st.table(pd.DataFrame(rows))
-        st.caption(
-            "Binary-model comparison on the held-out 2025 test set. The "
-            "quantile models are validated separately by coverage: their "
-            "predicted percentiles match observed 2025 approval times."
-        )
+        st.caption("Metrics on the held-out 2025 test set.")
     except FileNotFoundError:
         pass

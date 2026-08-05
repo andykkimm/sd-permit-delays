@@ -27,7 +27,7 @@ def main():
     os.makedirs("reports", exist_ok=True)
     os.makedirs("figures", exist_ok=True)
 
-    model = joblib.load("model_v2_cal.pkl")
+    model = joblib.load("model_v2.pkl")
     feature_cols = joblib.load("features_v2.pkl")
     top_types = joblib.load("top_15_types.pkl")
     holder_freq = joblib.load("holder_freq.pkl")

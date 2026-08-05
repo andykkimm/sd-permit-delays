@@ -58,6 +58,23 @@ Location shows a modest continuous effect; month has minimal individual impact.
 
 
 
+# Scope Reduction (August 2026)
+
+Removed two shipped pieces from the app and pipeline: the deadline risk
+curve (the 15-180 day threshold-grid classifiers with interpolation) and
+the calibration analysis (isotonic/sigmoid selection, ECE verification).
+Both worked and their evaluation numbers were solid, but they are more
+sophisticated than I can currently explain and defend end-to-end, and a
+project I can fully own matters more than extra features. The entries
+below are kept as the record of what was tried, what failed (quantile
+regression), and what the analysis found, in case I bring either piece
+back after studying the underlying methods properly.
+
+What remains shipped: the v2 feature set, the single binary classifier
+(87.3% accuracy / 0.942 AUC on 2025), SHAP explanations, the clickable
+map, and the error analysis.
+
+
 # v2: Feature Mining, Calibration, Custom Deadlines (August 2026)
 
 ## Shared feature module (features.py)
