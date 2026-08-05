@@ -27,6 +27,7 @@ def load_artifacts():
         "features": joblib.load("features_v2.pkl"),
         "top_types": list(joblib.load("top_15_types.pkl")),
         "cutoff": float(joblib.load("cutoff.pkl")),
+        "type_defaults": joblib.load("type_defaults.pkl"),
     }
 
 
@@ -72,25 +73,53 @@ with input_col:
     latitude, longitude = st.session_state.get("clicked_location", SD_CENTER)
     st.caption(f"Selected location: {latitude:.4f}, {longitude:.4f}")
 
+    # Untouched fields default to the TYPICAL values for the selected permit
+    # type (training-data mode/median, see type_defaults in train.py). An
+    # all-blank form would otherwise assert the safest possible profile —
+    # "standalone permit, no valuation, first-time applicant" — which makes
+    # plan-review permits look artificially low-risk. Widgets are keyed by
+    # type so switching types re-seeds the defaults.
+    D = A["type_defaults"].get(approval_type, A["type_defaults"]["Other"])
+    proc_options = ["Not sure"] + PROCESSING_CODES
+    default_proc = D["processing_code"] if D["processing_code"] in PROCESSING_CODES else "Not sure"
+    volume_labels = list(HOLDER_VOLUME_CHOICES)
+    default_volume = min(
+        (lbl for lbl in volume_labels if HOLDER_VOLUME_CHOICES[lbl] > 0),
+        key=lambda lbl: abs(HOLDER_VOLUME_CHOICES[lbl] - D["holder_volume"]),
+    )
+
     with st.expander("More project details (optional, improves the estimate)"):
+        st.caption(
+            "Pre-filled with typical values for the selected permit type — "
+            "adjust anything you know about your project."
+        )
         has_project = st.checkbox(
-            "Part of a larger development project", value=False
+            "Part of a larger development project",
+            value=D["has_project"], key=f"proj_{approval_type}",
         )
         processing_code = st.selectbox(
-            "Processing track",
-            ["Not sure"] + PROCESSING_CODES,
+            "Processing track", proc_options,
+            index=proc_options.index(default_proc), key=f"proc_{approval_type}",
             help="The review track assigned when the application is filed.",
         )
         valuation = st.number_input(
             "Declared project valuation ($, 0 if none)",
-            min_value=0.0, value=0.0, step=1000.0,
+            min_value=0.0, value=D["valuation"], step=1000.0,
+            key=f"val_{approval_type}",
         )
         scope_text = st.text_area(
             "Scope of work description (as you'd write it on the application)",
-            value="",
+            value="", key=f"scope_{approval_type}",
+            placeholder=(
+                f"Typical descriptions for this type run ~{D['scope_len']:.0f} "
+                "characters; left blank, that typical length is assumed."
+                if D["scope_len"] > 0 else ""
+            ),
         )
         holder_choice = st.selectbox(
-            "Who's pulling the permit?", list(HOLDER_VOLUME_CHOICES)
+            "Who's pulling the permit?", volume_labels,
+            index=volume_labels.index(default_volume),
+            key=f"holder_{approval_type}",
         )
 
     sensitivity = st.slider(
@@ -119,6 +148,8 @@ with output_col:
             valuation=valuation,
             scope_text=scope_text,
             holder_permits_per_year=HOLDER_VOLUME_CHOICES[holder_choice],
+            # blank scope box -> assume this type's typical description length
+            scope_len=D["scope_len"] if not scope_text else None,
         )
 
         st.session_state["result"] = {

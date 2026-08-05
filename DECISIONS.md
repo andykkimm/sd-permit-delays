@@ -58,6 +58,28 @@ Location shows a modest continuous effect; month has minimal individual impact.
 
 
 
+# App Defaults Bug: Untouched Inputs Implied the Safest Permit (August 2026)
+
+Found after deploy: leaving "More project details" untouched fed the model
+has_project=False, no valuation, no scope, first-time applicant — the
+safest possible profile. For plan-review types that combination barely
+exists in training (Combination Building Permits are ~100% project-linked),
+so the model read an untouched form as strong evidence of a routine permit:
+a Combination Building Permit showed 1.7% delay probability when its actual
+2025 delay rate is 62.5%. Every plan-review type was affected.
+
+Fix: per-type defaults computed from training data (mode for binary/
+categorical fields, median for numeric ones), stored in type_defaults.pkl
+and re-seeded whenever the selected type changes. A blank scope box now
+imputes the type's median description length instead of zero. Untouched
+predictions now track actual per-type delay rates (Combination Building
+81.2% predicted vs 62.5% actual; routine no-plan types stay ~1%) — a bit
+above the type average by design, since the typical profile (project-linked,
+median valuation) is riskier than the within-type mean. Lesson: default
+input values are a modeling decision, not a UI detail — "left blank" must
+map to "typical," not "best case."
+
+
 # Scope Reduction (August 2026)
 
 Removed two shipped pieces from the app and pipeline: the deadline risk

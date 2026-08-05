@@ -110,6 +110,35 @@ def main():
     m2.fit(X_train[v2_cols], y_train)
     metrics["v2"] = evaluate("v2 (enriched)", m2, X_test[v2_cols], y_test)
 
+    # --- Per-type defaults for the app's optional inputs ---
+    # When a user leaves "More project details" untouched, the app fills in
+    # the TYPICAL values for the selected permit type (training-data mode /
+    # median) rather than best-case values like "standalone permit". An
+    # all-blank form otherwise asserts the safest possible profile and
+    # makes plan-review permits look artificially low-risk.
+    print("\nComputing per-type input defaults...")
+    tg = train_df["APPROVAL_TYPE"].where(
+        train_df["APPROVAL_TYPE"].isin(top_types), "Other"
+    )
+    val = pd.to_numeric(train_df["APPROVAL_VALUATION"], errors="coerce")
+    scope_len = train_df["APPROVAL_SCOPE"].fillna("").str.len()
+    holder_vol = train_df["APPROVAL_PERMIT_HOLDER"].map(holder_freq).fillna(0)
+
+    type_defaults = {}
+    for t, g in train_df.groupby(tg):
+        idx = g.index
+        proc_mode = g["APPROVAL_PROCESSING_CODE"].fillna("(none)").mode().iloc[0]
+        has_val = (val.loc[idx] > 0).mean() >= 0.5
+        type_defaults[t] = {
+            "has_project": bool(g["PROJECT_ID"].notna().mean() >= 0.5),
+            "processing_code": None if proc_mode == "(none)" else proc_mode,
+            "valuation": float(val.loc[idx][val.loc[idx] > 0].median()) if has_val else 0.0,
+            "scope_len": float(scope_len.loc[idx].median()),
+            "holder_volume": float(holder_vol.loc[idx].median()),
+        }
+        d = type_defaults[t]
+        print(f"  {t[:45]:47s} proj={d['has_project']} proc={d['processing_code']}")
+
     # --- SHAP global importance for v2 ---
     print("\nComputing SHAP summary (5,000-row test sample)...")
     import shap
@@ -138,6 +167,7 @@ def main():
     joblib.dump(top_types, "top_15_types.pkl")
     joblib.dump(cutoff, "cutoff.pkl")
     joblib.dump(holder_freq, "holder_freq.pkl")
+    joblib.dump(type_defaults, "type_defaults.pkl")
     with open("figures/metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
     print("\nArtifacts saved. Done.")

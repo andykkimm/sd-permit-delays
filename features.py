@@ -97,6 +97,7 @@ def build_input_row(
     valuation=0.0,
     scope_text="",
     holder_permits_per_year=0,
+    scope_len=None,
 ):
     """Build a single-row feature frame from app inputs.
 
@@ -127,7 +128,10 @@ def build_input_row(
         row["has_valuation"] = 1
         row["log_valuation"] = float(np.log1p(valuation))
 
-    row["log_scope_len"] = float(np.log1p(len(scope_text or "")))
+    # scope_len overrides the text length when provided (used for imputing
+    # a typical description length when the user leaves the field blank)
+    effective_len = scope_len if scope_len is not None else len(scope_text or "")
+    row["log_scope_len"] = float(np.log1p(effective_len))
     row["log_holder_volume"] = float(np.log1p(holder_permits_per_year or 0))
 
     return pd.DataFrame([row])[features_to_keep]
