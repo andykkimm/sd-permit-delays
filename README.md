@@ -59,8 +59,9 @@ SHAP `TreeExplainer` provides global importances and per-prediction breakdowns i
 
 The [Streamlit dashboard](https://sd-permit-delays.streamlit.app) lets users describe a hypothetical permit (type, month, clickable map location, optional project details) and see:
 
-- A delayed/on-time prediction with estimated probability, plus an adjustable sensitivity threshold for how cautiously risk gets flagged
-- A SHAP chart explaining which factors drove that specific prediction
+- A delayed/on-time prediction with estimated probability, anchored against the observed 2024 delay rate for all permits and for that permit type
+- A plain-English summary of which factors raised or lowered the estimate, backed by a per-prediction SHAP chart
+- An adjustable sensitivity threshold controlling how cautiously risk gets flagged
 
 To run locally:
 ```bash

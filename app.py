@@ -14,6 +14,7 @@ from features import (
     PROCESSING_CODES,
     build_input_row,
     friendly_name,
+    plain_phrase,
 )
 
 st.set_page_config(page_title="SD Permit Delay Predictor", layout="wide")
@@ -22,12 +23,16 @@ st.set_page_config(page_title="SD Permit Delay Predictor", layout="wide")
 # --- Load saved model and reference data (cached across reruns) ---
 @st.cache_resource
 def load_artifacts():
+    with open("figures/metrics.json") as f:
+        metrics = json.load(f)
     return {
         "model": joblib.load("model_v2.pkl"),
         "features": joblib.load("features_v2.pkl"),
         "top_types": list(joblib.load("top_15_types.pkl")),
         "cutoff": float(joblib.load("cutoff.pkl")),
         "type_defaults": joblib.load("type_defaults.pkl"),
+        "base_rates": joblib.load("base_rates.pkl"),
+        "metrics": metrics,
     }
 
 
@@ -44,6 +49,13 @@ st.write(
     "Predicts whether a building permit approval is likely to be delayed "
     f"(defined as taking more than {int(A['cutoff'])} days), "
     "based on permit type, timing, location, and project details."
+)
+_d, _m = A["metrics"]["data"], A["metrics"]["v2"]
+st.caption(
+    f"Gradient boosting model trained on {_d['train_n']:,} San Diego permit "
+    f"approvals from 2024 and tested on {_d['test_n']:,} from 2025 — "
+    f"{_m['accuracy']:.0%} accuracy, {_m['roc_auc']:.2f} ROC-AUC on that "
+    "held-out year. Predictions below are explained with SHAP."
 )
 
 input_col, output_col = st.columns(2, gap="large")
@@ -155,6 +167,7 @@ with output_col:
         st.session_state["result"] = {
             "X_input": X_input,
             "sensitivity": sensitivity,
+            "approval_type": approval_type,
         }
 
     if "result" not in st.session_state:
@@ -169,14 +182,26 @@ with output_col:
             st.error(f"Likely DELAYED — {probability:.1%} estimated probability")
         else:
             st.success(f"Likely ON TIME — {probability:.1%} estimated delay probability")
+
+        # Anchor the probability against how often permits like this actually
+        # ran late -- a bare percentage means little without a base rate.
+        overall_rate = A["base_rates"]["overall"]
+        type_rate = A["base_rates"]["by_type"].get(R["approval_type"])
+        st.markdown("**For comparison, actual 2024 delay rates:**")
+        c1, c2 = st.columns(2)
+        c1.metric("All San Diego permits", f"{overall_rate:.0%}")
+        if type_rate is not None:
+            c2.metric("This permit type", f"{type_rate:.0%}",
+                      delta=f"this permit: {(probability - type_rate) * 100:+.0f} pts",
+                      delta_color="off")
         st.caption(
-            f"'Delayed' means taking longer than {int(A['cutoff'])} days, the "
-            "75th percentile of 2024 approvals — about 25% of permits."
+            f"'Delayed' means taking longer than {int(A['cutoff'])} days — the "
+            "75th percentile of 2024 approvals, so about a quarter of all "
+            "permits qualify by construction."
         )
 
-        # -- SHAP explanation --
+        # -- SHAP explanation, plain English first --
         st.subheader("Why this prediction?")
-        st.markdown("🔴 **Pushed toward DELAYED** &nbsp;&nbsp; 🔵 **Pushed toward ON TIME**")
 
         explainer = shap.TreeExplainer(A["model"])
         shap_values = explainer.shap_values(X_input)[0]
@@ -184,19 +209,63 @@ with output_col:
         top_n = 10
         order = np.argsort(np.abs(shap_values))[::-1][:top_n]
         top_values = shap_values[order]
-        top_labels = [friendly_name(A["features"][i]) for i in order]
         colors = ['#d62728' if v > 0 else '#1f77b4' for v in top_values]
 
-        fig, ax = plt.subplots(figsize=(5, 4.5))
+        row_values = X_input.iloc[0]
+        # Only name factors that actually moved the prediction. Without this
+        # floor, a near-certain prediction still lists its three largest
+        # rounding-error features as if they mattered.
+        floor = 0.1 * np.abs(shap_values).max()
+
+        def _phrases(positive):
+            """Top distinct drivers in one direction, as readable phrases."""
+            out = []
+            for i in order:
+                if (shap_values[i] > 0) != positive:
+                    continue
+                if abs(shap_values[i]) < floor:
+                    continue
+                col = A["features"][i]
+                p = plain_phrase(col, row_values[col])
+                if p is not None and p not in out:
+                    out.append(p)
+                if len(out) == 3:
+                    break
+            return out
+
+        def _join(items):
+            if len(items) == 1:
+                return items[0]
+            return ", ".join(items[:-1]) + (", and " if len(items) > 2 else " and ") + items[-1]
+
+        raised, lowered = _phrases(True), _phrases(False)
+        if raised:
+            st.markdown(f"🔴 **Raised** the delay estimate: {_join(raised)}.")
+        if lowered:
+            st.markdown(f"🔵 **Lowered** it: {_join(lowered)}.")
+
+        st.caption(
+            "Full breakdown — each bar is how far that factor moved this "
+            "prediction. Red pushes toward delayed, blue toward on time."
+        )
+        # Long permit-type names blow out the left margin and clip the
+        # x-axis label, so truncate them for the chart.
+        top_labels = [
+            (lambda s: s if len(s) <= 34 else s[:33] + "…")(
+                friendly_name(A["features"][i])
+            )
+            for i in order
+        ]
+        fig, ax = plt.subplots(figsize=(5.5, 4.5))
         y_pos = np.arange(len(top_labels))
         ax.barh(y_pos, top_values, color=colors)
         ax.set_yticks(y_pos)
         ax.set_yticklabels(top_labels, fontsize=8)
         ax.invert_yaxis()  # strongest feature at the top
-        ax.set_xlabel("Impact on prediction (SHAP value)")
+        ax.set_xlabel("Impact on prediction (SHAP value)", fontsize=9)
         ax.axvline(0, color='black', linewidth=0.8)
         fig.tight_layout()
-        st.pyplot(fig)
+        st.pyplot(fig, bbox_inches="tight")
 
 # --- About the model ---
 with st.expander("About the model"):

@@ -137,12 +137,15 @@ def build_input_row(
     return pd.DataFrame([row])[features_to_keep]
 
 
+MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June", "July",
+    "August", "September", "October", "November", "December",
+]
+
+
 def friendly_name(col):
     """Readable labels for feature columns, used in SHAP charts."""
-    month_names = [
-        "January", "February", "March", "April", "May", "June", "July",
-        "August", "September", "October", "November", "December",
-    ]
+    month_names = MONTH_NAMES
     if col.startswith("type_"):
         return "Permit Type: " + col[len("type_"):]
     if col.startswith("month_"):
@@ -157,4 +160,44 @@ def friendly_name(col):
         "log_valuation": "Project valuation (log $)",
         "log_scope_len": "Length of scope description",
         "log_holder_volume": "Permit holder's annual volume",
+    }.get(col, col)
+
+
+def plain_phrase(col, value):
+    """Sentence-fragment form of a feature, for plain-English explanations.
+
+    Reads naturally in "<phrase> raised the estimate" — the SHAP chart says
+    the same thing in log-odds, which most readers can't parse on sight.
+
+    `value` is the feature's value for this permit, and it matters: one-hot
+    columns that are OFF still carry a SHAP attribution, so phrasing them
+    like they're on ("the Express processing track") would claim something
+    about the permit that isn't true. Returns None when a feature has
+    nothing worth saying in words.
+    """
+    on = bool(value)
+
+    if col.startswith("type_"):
+        # "not being a Traffic Control Permit" is noise; only speak when on
+        return f"the permit type ({col[len('type_'):]})" if on else None
+    if col.startswith("month_"):
+        m = MONTH_NAMES[int(col[len("month_"):]) - 1]
+        return f"submitting in {m}" if on else None
+    if col.startswith("proc_"):
+        track = col[len("proc_"):].replace("_", " ")
+        return f"the {track} processing track" if on else (
+            f"not being on the {track} track"
+        )
+    if col == "has_project":
+        return ("being part of a larger development project" if on else
+                "being a standalone permit, not tied to a larger project")
+    if col == "has_valuation":
+        return ("having a declared project valuation" if on else
+                "having no declared project valuation")
+    return {
+        "GIS_LATITUDE": "the project location",
+        "GIS_LONGITUDE": "the project location",
+        "log_valuation": "the declared project valuation",
+        "log_scope_len": "the length of the scope description",
+        "log_holder_volume": "the permit holder's annual permit volume",
     }.get(col, col)

@@ -58,6 +58,37 @@ Location shows a modest continuous effect; month has minimal individual impact.
 
 
 
+# Readability Pass for Non-ML Readers (August 2026)
+
+The app was written for someone who already knows what a SHAP value is and
+what a "good" delay probability looks like. Four changes so the output
+stands on its own:
+
+1. **Base-rate anchors.** A bare "81.2%" means nothing without a reference
+   point. The result now sits next to the observed 2024 delay rates for all
+   permits (26%) and for the selected permit type (73%), computed in
+   train.py and saved as base_rates.pkl.
+2. **Plain-English drivers before the chart.** Two sentences naming the top
+   factors that raised and lowered the estimate, with the SHAP chart kept
+   below for readers who want the magnitudes.
+3. **Model provenance above the fold.** Training/test size and held-out
+   accuracy moved out of a collapsed expander into a caption under the
+   title, read from metrics.json rather than hardcoded.
+4. **Fixed a clipped axis label.** Long permit-type names expanded the
+   chart's left margin until the x-axis label ran off the right edge; type
+   names are now truncated and the figure is saved with a tight bounding box.
+
+One subtlety worth recording: the first version of the plain-English
+summary read the top SHAP features regardless of their value, which
+produced sentences like "the Express processing track lowered it" for a
+permit on the *Standard* track — one-hot columns that are OFF still carry
+an attribution. Phrases are now conditioned on the feature's actual value
+("not being on the Express track"), permit-type and month features are
+skipped entirely when off, and factors below 10% of the largest
+contribution are dropped so near-certain predictions don't list rounding
+noise as if it mattered.
+
+
 # App Defaults Bug: Untouched Inputs Implied the Safest Permit (August 2026)
 
 Found after deploy: leaving "More project details" untouched fed the model

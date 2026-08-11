@@ -139,6 +139,19 @@ def main():
         d = type_defaults[t]
         print(f"  {t[:45]:47s} proj={d['has_project']} proc={d['processing_code']}")
 
+    # Observed 2024 delay rates, so the app can anchor a predicted
+    # probability against how often permits like this actually ran late.
+    base_rates = {
+        "overall": float(y_train.mean()),
+        "by_type": {t: float(g.mean()) for t, g in y_train.groupby(tg)},
+    }
+    metrics["data"] = {
+        "train_n": int(len(train_df)),
+        "test_n": int(len(test_df)),
+        "cutoff_days": int(cutoff),
+        "train_delay_rate": base_rates["overall"],
+    }
+
     # --- SHAP global importance for v2 ---
     print("\nComputing SHAP summary (5,000-row test sample)...")
     import shap
@@ -168,6 +181,7 @@ def main():
     joblib.dump(cutoff, "cutoff.pkl")
     joblib.dump(holder_freq, "holder_freq.pkl")
     joblib.dump(type_defaults, "type_defaults.pkl")
+    joblib.dump(base_rates, "base_rates.pkl")
     with open("figures/metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
     print("\nArtifacts saved. Done.")
