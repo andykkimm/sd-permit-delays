@@ -67,7 +67,12 @@ stands on its own:
 1. **Base-rate anchors.** A bare "81.2%" means nothing without a reference
    point. The result now sits next to the observed 2024 delay rates for all
    permits (26%) and for the selected permit type (73%), computed in
-   train.py and saved as base_rates.pkl.
+   train.py and saved as base_rates.pkl. The gap between the estimate and
+   the type's rate was first shown as a Streamlit metric delta ("+8 pts"),
+   which a reader immediately misread — it sits under the 73% so it looks
+   like it modifies that number, and a delta conventionally means "change
+   since last period." Replaced with a plain sentence: "This permit's 81%
+   estimate is 8 points above the historical rate for its type."
 2. **Plain-English drivers before the chart.** Two sentences naming the top
    factors that raised and lowered the estimate, with the SHAP chart kept
    below for readers who want the magnitudes.

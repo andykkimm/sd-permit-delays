@@ -191,9 +191,13 @@ with output_col:
         c1, c2 = st.columns(2)
         c1.metric("All San Diego permits", f"{overall_rate:.0%}")
         if type_rate is not None:
-            c2.metric("This permit type", f"{type_rate:.0%}",
-                      delta=f"this permit: {(probability - type_rate) * 100:+.0f} pts",
-                      delta_color="off")
+            c2.metric("This permit type", f"{type_rate:.0%}")
+            gap = (probability - type_rate) * 100
+            st.write(
+                f"This permit's {probability:.0%} estimate is "
+                f"**{abs(gap):.0f} points {'above' if gap > 0 else 'below'}** "
+                "the historical rate for its type."
+            )
         st.caption(
             f"'Delayed' means taking longer than {int(A['cutoff'])} days — the "
             "75th percentile of 2024 approvals, so about a quarter of all "
